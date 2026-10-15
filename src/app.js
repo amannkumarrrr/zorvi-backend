@@ -18,8 +18,25 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import { notFound } from './middleware/notFound.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import mongoose from 'mongoose';
+import { connectDB } from './config/database.js';
 
 const app = express();
+
+// Ensure MongoDB Atlas is connected during serverless (e.g. Vercel) invocations
+let dbPromise = null;
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    if (!dbPromise) {
+      dbPromise = connectDB().catch((err) => {
+        dbPromise = null;
+        console.error('[Serverless] MongoDB connection error:', err.message);
+      });
+    }
+    await dbPromise;
+  }
+  next();
+});
 
 // Security HTTP headers
 app.use(
