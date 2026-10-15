@@ -53,10 +53,17 @@ export const initAdminUser = async () => {
 };
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
+  }
+
   const uri = process.env.MONGODB_URI;
 
   if (!uri) {
     console.error('FATAL: MONGODB_URI environment variable is missing.');
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      throw new Error('MONGODB_URI environment variable is missing.');
+    }
     process.exit(1);
   }
 
@@ -92,6 +99,9 @@ export const connectDB = async () => {
     return conn;
   } catch (error) {
     console.error('[Database] MongoDB connection failed:', error.message);
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      throw error;
+    }
     process.exit(1);
   }
 };

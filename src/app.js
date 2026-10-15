@@ -23,6 +23,59 @@ import { connectDB } from './config/database.js';
 
 const app = express();
 
+// Security HTTP headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// CORS configuration supporting production Vercel frontend & local development
+const frontendUrl = process.env.FRONTEND_URL || 'https://zorvi-fontend.vercel.app';
+const allowedOrigins = [
+  frontendUrl,
+  'https://zorvi-fontend.vercel.app',
+  'https://zorvi-frontend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or same-origin)
+      if (!origin) return callback(null, true);
+      // Allow any localhost / 127.0.0.1 port in development
+      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      // Allow any vercel preview deployment for zorvi
+      if (/^https:\/\/zorvi-.*\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Razorpay-Signature'],
+  })
+);
+
+// Instant Health Check & Root Ping (does not block on DB cold-start)
+app.get(['/', '/api', '/api/health'], (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'ZORVI Phase 3 API server operational',
+    version: '1.0.0',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Ensure MongoDB Atlas is connected during serverless (e.g. Vercel) invocations
 let dbPromise = null;
 app.use(async (req, res, next) => {
@@ -37,35 +90,6 @@ app.use(async (req, res, next) => {
   }
   next();
 });
-
-// Security HTTP headers
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
-
-// CORS configuration with explicit frontend origin and credentials
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or same-origin)
-      if (!origin) return callback(null, true);
-      // Allow any localhost / 127.0.0.1 port in development
-      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      if (origin === frontendUrl) {
-        return callback(null, true);
-      }
-      callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Razorpay-Signature'],
-  })
-);
 
 // Logging
 if (process.env.NODE_ENV !== 'test') {
