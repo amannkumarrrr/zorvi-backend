@@ -36,37 +36,60 @@ app.use(
 // CORS configuration supporting production Vercel frontend & local development
 const frontendUrl = process.env.FRONTEND_URL || 'https://zorvi-fontend.vercel.app';
 const allowedOrigins = [
-  frontendUrl,
   'https://zorvi-fontend.vercel.app',
   'https://zorvi-frontend.vercel.app',
+  frontendUrl,
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
-];
+  'http://localhost:5001',
+  'http://127.0.0.1:5001',
+].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or same-origin)
-      if (!origin) return callback(null, true);
-      // Allow any localhost / 127.0.0.1 port in development
-      if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      // Allow any vercel preview deployment for zorvi
-      if (/^https:\/\/zorvi-.*\.vercel\.app$/.test(origin)) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+const isOriginAllowed = (origin) => {
+  // Allow requests with no origin (e.g. mobile native apps, curl, server-to-server, or same-origin)
+  if (!origin) return true;
+
+  // Exact match against allowed origins list
+  if (allowedOrigins.includes(origin)) return true;
+
+  // Allow any localhost / 127.0.0.1 port in development
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    return true;
+  }
+
+  // Allow any vercel deployment for zorvi (e.g. preview branches)
+  if (/^https:\/\/zorvi(-[a-z0-9_-]+)?\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+
+  return false;
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Razorpay-Signature'],
-  })
-);
+    } else {
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'X-Razorpay-Signature',
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Authorization'],
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Instant Health Check & Root Ping (does not block on DB cold-start)
 app.get(['/', '/api', '/api/health'], (req, res) => {
