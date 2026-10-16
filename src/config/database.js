@@ -57,14 +57,11 @@ export const connectDB = async () => {
     return mongoose.connection;
   }
 
-  const uri = process.env.MONGODB_URI;
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
   if (!uri) {
     console.error('FATAL: MONGODB_URI environment variable is missing.');
-    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-      throw new Error('MONGODB_URI environment variable is missing.');
-    }
-    process.exit(1);
+    throw new Error('MONGODB_URI environment variable is missing.');
   }
 
   try {
@@ -98,11 +95,12 @@ export const connectDB = async () => {
 
     return conn;
   } catch (error) {
-    console.error('[Database] MongoDB connection failed:', error.message);
-    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-      throw error;
-    }
-    process.exit(1);
+    const safeErrorMsg = (error.message || '').replace(
+      /mongodb(\+srv)?:\/\/[^@]+@/gi,
+      'mongodb$1://<credentials-hidden>@'
+    );
+    console.error('[Database] MongoDB connection failed:', safeErrorMsg);
+    throw error;
   }
 };
 
